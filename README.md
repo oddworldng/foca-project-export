@@ -8,6 +8,8 @@
 
 > Targets FOCA Open Source 3.x (C# / .NET Framework 4.8). Works with SQL Server Express/Developer and LocalDB.
 
+> Compatible with FOCA Open Source v3.4.7.1.
+
 ---
 
 ## Features
@@ -33,7 +35,7 @@
 
 ## Requirements
 
-- Windows 10/11 • FOCA Open Source 3.x • .NET Framework 4.8  
+- Windows 10/11 • FOCA Open Source v3.4.7.1 • .NET Framework 4.8  
 - SQL Server Express/Developer or LocalDB (uses FOCA’s existing connection)
 
 ---
