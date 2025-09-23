@@ -35,7 +35,9 @@
 
 ## Requirements
 
-- Windows 10/11 • FOCA Open Source v3.4.7.1 • .NET Framework 4.8  
+- Windows 10/11
+- FOCA Open Source v3.4.7.1
+- .NET Framework 4.8
 - SQL Server Express/Developer or LocalDB (uses FOCA’s existing connection)
 
 ---
