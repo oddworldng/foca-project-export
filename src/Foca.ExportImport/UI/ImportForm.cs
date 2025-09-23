@@ -9,6 +9,7 @@ namespace Foca.ExportImport.UI
 	{
 		private readonly BackgroundWorker worker;
 		private readonly ImportService importService;
+		private string destinationRoot;
 
 		public ImportForm()
 		{
@@ -59,17 +60,17 @@ namespace Foca.ExportImport.UI
 				bw.ReportProgress(tuple.percent, tuple.status);
 			});
 
-			// Mensajes granulares
 			Action<int, string> step = (p, m) => bw.ReportProgress(p, m);
 
-			var evidence = FocaContext.Current.GetEvidenceRootFolder();
 			var openFile = SelectFocaFile();
 			if (string.IsNullOrEmpty(openFile)) { e.Cancel = true; return; }
+
+			if (!SelectDestinationRoot()) { e.Cancel = true; return; }
 
 			if (bw.CancellationPending) { e.Cancel = true; return; }
 			step(5, "Extrayendo fichero .foca (ZIP)");
 
-			importService.ImportProject(openFile, evidence, overwrite: false, progress);
+			importService.ImportProject(openFile, destinationRoot, overwrite: false, progress);
 		}
 
 		private string SelectFocaFile()
@@ -78,6 +79,21 @@ namespace Foca.ExportImport.UI
 			{
 				return ofd.ShowDialog(this) == DialogResult.OK ? ofd.FileName : null;
 			}
+		}
+
+		private bool SelectDestinationRoot()
+		{
+			using (var fbd = new FolderBrowserDialog { Description = "Selecciona la carpeta raíz de evidencias destino del proyecto" })
+			{
+				var def = FocaContext.Current.GetEvidenceRootFolder();
+				if (!string.IsNullOrWhiteSpace(def)) fbd.SelectedPath = def;
+				if (fbd.ShowDialog(this) == DialogResult.OK)
+				{
+					destinationRoot = fbd.SelectedPath;
+					return true;
+				}
+			}
+			return false;
 		}
 
 		private void Worker_ProgressChanged(object sender, ProgressChangedEventArgs e)
