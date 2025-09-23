@@ -1,0 +1,57 @@
+# Visual Studio
+.vs/
+*.suo
+*.user
+*.userosscache
+*.sln.docstates
+
+# Build artifacts
+[Bb]in/
+[Oo]bj/
+[Tt]est[Rr]esults/
+*.cache
+*.pdb
+*.obj
+*.ilk
+*.tmp
+*.log
+*.tlog
+*.lastcodeanalysissucceeded
+*.dbmdl
+*.sarif
+
+# NuGet
+*.nupkg
+*.snupkg
+**/packages/*
+!**/packages/build/
+!**/packages/repositories.config
+
+# MSBuild
+*.ruleset
+*.psess
+*.vsp
+*.vspx
+*.coverage
+*.coveragexml
+
+# Rider/Resharper
+.idea/
+*.DotSettings.user
+
+# OS junk
+.DS_Store
+Thumbs.db
+
+# Plugin outputs
+/plugins/*.dll
+/plugins/*.pdb
+/plugins/*.xml
+
+# Archives/exports
+*.zip
+*.foca
+
+# Local config
+*.local.json
+appsettings.Development.json
