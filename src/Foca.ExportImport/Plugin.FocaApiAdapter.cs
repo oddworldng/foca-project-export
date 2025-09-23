@@ -1,49 +1,71 @@
 #if FOCA_API
 using System;
+using System.IO;
 using System.Windows.Forms;
-using FOCA.PluginsAPI; // Namespace indicativo; ajustar al real del repositorio de FOCA
-using Foca.ExportImport.UI;
-using Foca.ExportImport.Services;
+using PluginsAPI;
+using PluginsAPI.Elements;
 
-namespace Foca.ExportImport
+namespace Foca
 {
-	public sealed class FocaExportImportPluginApi : IPlugin // Ajustar a la interfaz real del ejemplo
+	internal static class PluginDiag
 	{
-		public string Name => "Export/Import .foca";
-		public string Description => "Exporta e importa proyectos FOCA a/desde .foca";
-		public string Author => "Andrés Nacimiento";
-		public string Version => "1.0.0";
-
-		public void Initialize(IHostContext context)
+		private static readonly string LogPath = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "FocaExportImport.plugin.log");
+		public static void Log(string message)
 		{
-			// Registrar menús en Project y Plugins según API real
-			context.MenuRegistrar.AddProjectExportMenu("Export Project as .foca…", OnExport);
-			context.MenuRegistrar.AddProjectImportMenu("Import Project from .foca…", OnImport);
-			context.MenuRegistrar.AddPluginMenu("Export/Import .foca", OnExport, OnImport);
-
-			// Configurar contexto global
-			FocaContext.Configure(new HostContextAdapter(context));
-		}
-
-		private void OnExport(object sender, EventArgs args)
-		{
-			using (var f = new ExportForm()) f.ShowDialog();
-		}
-
-		private void OnImport(object sender, EventArgs args)
-		{
-			using (var f = new ImportForm()) f.ShowDialog();
+			try { File.AppendAllText(LogPath, DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss.fff ") + message + Environment.NewLine); } catch { }
 		}
 	}
 
-	internal sealed class HostContextAdapter : IFocaContext
+	public class Plugin
 	{
-		private readonly IHostContext host;
-		public HostContextAdapter(IHostContext host) { this.host = host; }
-		public Guid GetActiveProjectId() => host.ProjectService.ActiveProjectId;
-		public string GetActiveProjectName() => host.ProjectService.ActiveProjectName;
-		public string GetConnectionString() => host.DatabaseService.ConnectionString;
-		public string GetEvidenceRootFolder() => host.FileService.GetEvidenceRootForProject(host.ProjectService.ActiveProjectId);
+		private string _name = "Export Import Project";
+		private string _description = "Exporta e importa proyectos FOCA a y desde archivos foca";
+		private readonly Export export;
+
+		public Export exportItems { get { return this.export; } }
+
+		public string name
+		{
+			get { return this._name; }
+			set { this._name = value; }
+		}
+
+		public string description
+		{
+			get { return this._description; }
+			set { this._description = value; }
+		}
+
+		public Plugin()
+		{
+			try
+			{
+				PluginDiag.Log("Plugin ctor start");
+				this.export = new Export();
+
+				var hostPanel = new Panel { Dock = DockStyle.Fill, Visible = false };
+				var pluginPanel = new PluginPanel(hostPanel, false);
+				this.export.Add(pluginPanel);
+				PluginDiag.Log("PluginPanel added");
+
+				var root = new ToolStripMenuItem(this._name);
+				var exportItem = new ToolStripMenuItem("Export Project (foca)");
+				exportItem.Click += (EventHandler)((s, e) => { MessageBox.Show("Export placeholder cargado correctamente."); });
+				var importItem = new ToolStripMenuItem("Import Project (foca)");
+				importItem.Click += (EventHandler)((s, e) => { MessageBox.Show("Import placeholder cargado correctamente."); });
+				root.DropDownItems.Add(exportItem);
+				root.DropDownItems.Add(importItem);
+
+				var pluginMenu = new PluginToolStripMenuItem(root);
+				this.export.Add(pluginMenu);
+				PluginDiag.Log("Menu added");
+			}
+			catch (Exception ex)
+			{
+				PluginDiag.Log("Plugin ctor error: " + ex);
+				throw;
+			}
+		}
 	}
 }
 #endif

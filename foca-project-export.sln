@@ -4,6 +4,10 @@ VisualStudioVersion = 17.0.31903.59
 MinimumVisualStudioVersion = 10.0.40219.1
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Foca.ExportImport", "src\Foca.ExportImport\Foca.ExportImport.csproj", "{D5A8B9A4-7C6E-4E85-9A4D-0F2B5A0C9E3C}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Foca.PluginHost", "src\Foca.PluginHost\Foca.PluginHost.csproj", "{7C2AFB73-2A9E-4A4F-94A2-6D0B0F7B5A9F}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "PluginsAPI", "FOCA\PluginsAPI source\PluginsAPI.csproj", "{40142847-7272-48EA-9425-81B0C201AF02}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -14,8 +18,19 @@ Global
 		{D5A8B9A4-7C6E-4E85-9A4D-0F2B5A0C9E3C}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{D5A8B9A4-7C6E-4E85-9A4D-0F2B5A0C9E3C}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{D5A8B9A4-7C6E-4E85-9A4D-0F2B5A0C9E3C}.Release|Any CPU.Build.0 = Release|Any CPU
+		{7C2AFB73-2A9E-4A4F-94A2-6D0B0F7B5A9F}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{7C2AFB73-2A9E-4A4F-94A2-6D0B0F7B5A9F}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{7C2AFB73-2A9E-4A4F-94A2-6D0B0F7B5A9F}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{7C2AFB73-2A9E-4A4F-94A2-6D0B0F7B5A9F}.Release|Any CPU.Build.0 = Release|Any CPU
+		{40142847-7272-48EA-9425-81B0C201AF02}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{40142847-7272-48EA-9425-81B0C201AF02}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{40142847-7272-48EA-9425-81B0C201AF02}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{40142847-7272-48EA-9425-81B0C201AF02}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
+	EndGlobalSection
+	GlobalSection(ExtensibilityGlobals) = postSolution
+		SolutionGuid = {C68418E0-F922-49FE-873C-A16384FCBB86}
 	EndGlobalSection
 EndGlobal

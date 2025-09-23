@@ -3,6 +3,8 @@ using System.Collections.Generic;
 using System.Data.SqlClient;
 using System.IO;
 using System.IO.Compression;
+using System.Linq;
+using Newtonsoft.Json;
 using Foca.ExportImport.Models;
 
 namespace Foca.ExportImport.Services
@@ -31,7 +33,7 @@ namespace Foca.ExportImport.Services
 				progress.Report((10, "Leyendo manifest"));
 				var manifestPath = Path.Combine(tempRoot, "manifest.json");
 				if (!File.Exists(manifestPath)) throw new IOException("manifest.json no encontrado");
-				var manifest = Newtonsoft.Json.JsonConvert.DeserializeObject<Manifest>(File.ReadAllText(manifestPath));
+				var manifest = JsonConvert.DeserializeObject<Manifest>(File.ReadAllText(manifestPath));
 
 				ValidateManifest(manifest);
 
@@ -298,7 +300,7 @@ namespace Foca.ExportImport.Services
 			var expected = new List<(string src, string sha, string originalRel, string fileName)>();
 			foreach (var line in indexedLines)
 			{
-				var rec = Newtonsoft.Json.JsonConvert.DeserializeObject<Dictionary<string, object>>(line);
+				var rec = JsonConvert.DeserializeObject<Dictionary<string, object>>(line);
 				if (rec == null) continue;
 				string path = rec.ContainsKey("path") ? Convert.ToString(rec["path"]) : null;
 				string sha = rec.ContainsKey("sha256") ? Convert.ToString(rec["sha256"]) : null;
@@ -311,7 +313,8 @@ namespace Foca.ExportImport.Services
 			for (int i = 0; i < expected.Count; i++)
 			{
 				var item = expected[i];
-				var src = Path.Combine(sourceFilesDir, new string(item.src.SkipWhile(c => c == Path.DirectorySeparatorChar).ToArray()));
+				var trimmed = item.src.TrimStart(Path.DirectorySeparatorChar);
+				var src = Path.Combine(sourceFilesDir, trimmed);
 				var dest = string.IsNullOrWhiteSpace(item.originalRel)
 					? Path.Combine(destinationEvidenceFolder, string.IsNullOrWhiteSpace(item.fileName) ? Path.GetFileName(src) : item.fileName)
 					: Path.GetFullPath(Path.Combine(destinationEvidenceFolder, item.originalRel.Replace('/', Path.DirectorySeparatorChar)));

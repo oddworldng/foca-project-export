@@ -2,6 +2,8 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Text;
+using System.Linq;
+using Newtonsoft.Json;
 
 namespace Foca.ExportImport.Services
 {
@@ -117,7 +119,7 @@ namespace Foca.ExportImport.Services
 			{
 				dict[columns[i]] = values[i];
 			}
-			var json = Newtonsoft.Json.JsonConvert.SerializeObject(dict, Newtonsoft.Json.Formatting.None);
+			var json = JsonConvert.SerializeObject(dict, Formatting.None);
 			writer.WriteLine(json);
 		}
 

@@ -92,7 +92,7 @@ ORDER BY i.index_id, ic.key_ordinal", conn))
 			return uks;
 		}
 
-		public List<(string referencing, string referenced)> GetForeignKeyEdges(SqlConnection conn)
+		public List<(string, string)> GetForeignKeyEdges(SqlConnection conn)
 		{
 			var edges = new List<(string, string)>();
 			using (var cmd = new SqlCommand(@"
@@ -142,12 +142,12 @@ JOIN sys.tables td ON td.object_id = fk.referenced_object_id", conn))
 			var edges = new List<(string, string)>();
 			foreach (var e in edgesAll)
 			{
-				if (scoped.Contains(e.referencing) && scoped.Contains(e.referenced)) edges.Add(e);
+				if (scoped.Contains(e.Item1) && scoped.Contains(e.Item2)) edges.Add(e);
 			}
 			// Kahn
 			var indeg = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
 			foreach (var t in scoped) indeg[t] = 0;
-			foreach (var e in edges) indeg[e.referencing] = indeg[e.referencing] + 1;
+			foreach (var e in edges) indeg[e.Item1] = indeg[e.Item1] + 1;
 			var q = new Queue<string>();
 			foreach (var kv in indeg) if (kv.Value == 0) q.Enqueue(kv.Key);
 			var order = new List<string>();
@@ -158,11 +158,11 @@ JOIN sys.tables td ON td.object_id = fk.referenced_object_id", conn))
 				for (int i = edges.Count - 1; i >= 0; i--)
 				{
 					var e = edges[i];
-					if (string.Equals(e.referenced, n, StringComparison.OrdinalIgnoreCase))
+					if (string.Equals(e.Item2, n, StringComparison.OrdinalIgnoreCase))
 					{
-						indeg[e.referencing]--;
+						indeg[e.Item1]--;
 						edges.RemoveAt(i);
-						if (indeg[e.referencing] == 0) q.Enqueue(e.referencing);
+						if (indeg[e.Item1] == 0) q.Enqueue(e.Item1);
 					}
 				}
 			}

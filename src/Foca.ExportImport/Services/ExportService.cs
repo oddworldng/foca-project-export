@@ -4,6 +4,7 @@ using System.Data;
 using System.Data.SqlClient;
 using System.IO;
 using System.IO.Compression;
+using Newtonsoft.Json;
 using Foca.ExportImport.Models;
 
 namespace Foca.ExportImport.Services
@@ -335,7 +336,7 @@ namespace Foca.ExportImport.Services
 
 		private static void WriteJson<T>(string path, T data)
 		{
-			var json = Newtonsoft.Json.JsonConvert.SerializeObject(data, Newtonsoft.Json.Formatting.Indented);
+			var json = JsonConvert.SerializeObject(data, Formatting.Indented);
 			File.WriteAllText(path, json);
 		}
 	}
