@@ -8,16 +8,14 @@ namespace Foca.ExportImport.UI
 	public partial class ImportForm : Form
 	{
 		private readonly BackgroundWorker worker;
-		private readonly ImportService importService;
+		private ImportService importService;
 		private string destinationRoot;
 
 		public ImportForm()
 		{
 			InitializeComponent();
 
-			importService = new ImportService(
-				new DatabaseService(FocaContext.Current.GetConnectionString()),
-				new ZipAndHashService());
+			// Servicios se inicializan al pulsar Start; si no hay contexto, intentamos autoconfigurar desde FOCA.exe.config
 
 			worker = new BackgroundWorker
 			{
@@ -33,6 +31,25 @@ namespace Foca.ExportImport.UI
 		{
 			if (!worker.IsBusy)
 			{
+				// Validar/auto-configurar contexto
+				IFocaContext ctx = null;
+				try { ctx = FocaContext.Current; }
+				catch { }
+				if (ctx == null)
+				{
+					try { FocaContext.Configure(new AutoFocaContext()); ctx = FocaContext.Current; }
+					catch (Exception ex)
+					{
+						MessageBox.Show(this, "No hay proyecto activo de FOCA o el contexto no está configurado. Abre un proyecto en FOCA e inténtalo de nuevo.\r\n\r\n" + ex.Message, "FOCA", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+						return;
+					}
+				}
+
+				// Inicializar servicios con la cadena de conexión del contexto
+				importService = new ImportService(
+					new DatabaseService(FocaContext.Current.GetConnectionString()),
+					new ZipAndHashService());
+
 				progressBar.Value = 0;
 				progressStep.Value = 0;
 				lblStatus.Text = "Iniciando importación...";
