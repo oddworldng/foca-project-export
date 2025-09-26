@@ -54,7 +54,10 @@ namespace Foca.ExportImport.UI
 				if (string.IsNullOrEmpty(selectedFocaPath))
 				{
 					if (!ChooseFocaAndPrefill()) return;
-					lblStatus.Text = "Archivo cargado. Revisa nombre y carpeta y pulsa Importar de nuevo.";
+					// Cambiar UI: ocultar seleccionar, habilitar Importar/Cancelar
+					btnStart.Text = "Importar";
+					btnCancel.Enabled = true;
+					lblStatus.Text = "Archivo cargado. Revisa nombre y carpeta y pulsa Importar.";
 					return;
 				}
 
@@ -187,7 +190,15 @@ namespace Foca.ExportImport.UI
 			{
 				lblStatus.Text = "Completado";
 				progressStep.Value = 100;
+				btnCancel.Visible = false;
+				btnClose.Visible = true;
+				btnStart.Enabled = false;
 			}
+		}
+
+		private void btnClose_Click(object sender, EventArgs e)
+		{
+			this.Close();
 		}
 	}
 }

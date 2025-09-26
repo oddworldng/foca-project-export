@@ -93,7 +93,16 @@ namespace Foca.ExportImport.Services
 
 				progress.Report((70, "Restaurando ficheros"));
 				var filesDir = Path.Combine(tempRoot, "files");
-				RestoreFiles(filesDir, Path.Combine(tempRoot, "meta", "files.jsonl"), destinationEvidenceFolder, progress);
+				RestoreFiles(filesDir, Path.Combine(tempRoot, "meta", "files.jsonl"), destinationEvidenceFolder, targetProjectId, progress);
+
+				// Garantizar que la carpeta de evidencias quede guardada en Projects
+				using (var conn = databaseService.OpenConnection())
+				using (var cmd = new SqlCommand("UPDATE [Projects] SET FolderToDownload = @f WHERE Id = @id", conn))
+				{
+					cmd.Parameters.AddWithValue("@f", destinationEvidenceFolder ?? string.Empty);
+					cmd.Parameters.AddWithValue("@id", targetProjectId);
+					cmd.ExecuteNonQuery();
+				}
 
 				progress.Report((100, "Importación completada"));
 			}
@@ -172,10 +181,13 @@ namespace Foca.ExportImport.Services
 		{
 			const int BatchSize = 1000;
 			var buffer = new List<Dictionary<string, object>>(BatchSize);
+			// Evitar insertar valores en columnas IDENTITY. En FOCA suelen ser 'Id'.
+			var insertColumns = new List<string>(columns);
+			if (insertColumns.Contains("Id")) insertColumns.Remove("Id");
 			Action flush = () =>
 			{
 				if (buffer.Count == 0) return;
-				BulkUpsert(conn, tx, tableName, columns, buffer, naturalKey);
+				BulkUpsert(conn, tx, tableName, insertColumns, buffer, naturalKey);
 				buffer.Clear();
 			};
 
@@ -191,6 +203,7 @@ namespace Foca.ExportImport.Services
 						var values = ParseCsvLine(line, columns.Count);
 							var dict = Map(columns, values);
 							if (columns.Contains("ProjectId")) dict["ProjectId"] = targetProjectId;
+							if (columns.Contains("IdProject")) dict["IdProject"] = targetProjectId;
 							buffer.Add(dict);
 						if (buffer.Count >= BatchSize) flush();
 					}
@@ -200,8 +213,9 @@ namespace Foca.ExportImport.Services
 					string line;
 					while ((line = sr.ReadLine()) != null)
 					{
-						var dict = Newtonsoft.Json.JsonConvert.DeserializeObject<Dictionary<string, object>>(line);
+							var dict = Newtonsoft.Json.JsonConvert.DeserializeObject<Dictionary<string, object>>(line);
 							if (columns.Contains("ProjectId")) dict["ProjectId"] = targetProjectId;
+							if (columns.Contains("IdProject")) dict["IdProject"] = targetProjectId;
 							buffer.Add(dict);
 						if (buffer.Count >= BatchSize) flush();
 					}
@@ -225,13 +239,13 @@ namespace Foca.ExportImport.Services
 			}
 		}
 
-		private void BulkUpsert(SqlConnection conn, SqlTransaction tx, string tableName, List<string> columns, List<Dictionary<string, object>> rows, IReadOnlyList<string> naturalKey)
+		private void BulkUpsert(SqlConnection conn, SqlTransaction tx, string tableName, List<string> insertColumns, List<Dictionary<string, object>> rows, IReadOnlyList<string> naturalKey)
 		{
 			if (naturalKey == null)
 			{
 				foreach (var row in rows)
 				{
-					InsertSingle(conn, tx, tableName, columns, row);
+					InsertSingle(conn, tx, tableName, insertColumns, row);
 				}
 				return;
 			}
@@ -240,18 +254,21 @@ namespace Foca.ExportImport.Services
 			{
 				if (!ExistsByKey(conn, tx, tableName, naturalKey, row))
 				{
-					InsertSingle(conn, tx, tableName, columns, row);
+					InsertSingle(conn, tx, tableName, insertColumns, row);
 				}
 			}
 		}
 
 		private bool ExistsByKey(SqlConnection conn, SqlTransaction tx, string tableName, IReadOnlyList<string> keyCols, Dictionary<string, object> row)
 		{
-			using (var cmd = new SqlCommand($"SELECT 1 FROM [" + tableName + "] WHERE " + string.Join(" AND ", BuildEquals(keyCols)), conn, tx))
+			string where = string.Join(" AND ", BuildEquals(keyCols));
+			using (var cmd = new SqlCommand($"SELECT 1 FROM [" + tableName + "] WHERE " + where, conn, tx))
 			{
 				foreach (var c in keyCols)
 				{
-					cmd.Parameters.AddWithValue("@" + c, row.ContainsKey(c) ? (row[c] ?? (object)DBNull.Value) : DBNull.Value);
+					var paramName = "@" + c;
+					object value = row.ContainsKey(c) ? (row[c] ?? (object)DBNull.Value) : DBNull.Value;
+					cmd.Parameters.AddWithValue(paramName, value);
 				}
 				var o = cmd.ExecuteScalar();
 				return o != null;
@@ -316,7 +333,7 @@ namespace Foca.ExportImport.Services
 			return res;
 		}
 
-		private void RestoreFiles(string sourceFilesDir, string filesIndexPath, string destinationEvidenceFolder, IProgress<(int, string)> progress)
+		private void RestoreFiles(string sourceFilesDir, string filesIndexPath, string destinationEvidenceFolder, int targetProjectId, IProgress<(int, string)> progress)
 		{
 			if (!Directory.Exists(sourceFilesDir)) return;
 			Directory.CreateDirectory(destinationEvidenceFolder);
@@ -337,22 +354,64 @@ namespace Foca.ExportImport.Services
 			for (int i = 0; i < expected.Count; i++)
 			{
 				var item = expected[i];
-				var trimmed = item.src.TrimStart(Path.DirectorySeparatorChar);
-				var src = Path.Combine(sourceFilesDir, trimmed);
-				var dest = string.IsNullOrWhiteSpace(item.originalRel)
-					? Path.Combine(destinationEvidenceFolder, string.IsNullOrWhiteSpace(item.fileName) ? Path.GetFileName(src) : item.fileName)
-					: Path.GetFullPath(Path.Combine(destinationEvidenceFolder, item.originalRel.Replace('/', Path.DirectorySeparatorChar)));
+				var normalized = item.src.Replace('/', Path.DirectorySeparatorChar);
+				var marker = Path.DirectorySeparatorChar + "files" + Path.DirectorySeparatorChar;
+				int idx = normalized.IndexOf(marker, StringComparison.OrdinalIgnoreCase);
+				var relInZip = idx >= 0 ? normalized.Substring(idx + marker.Length) : normalized.TrimStart(Path.DirectorySeparatorChar);
+				var src = Path.Combine(sourceFilesDir, relInZip);
+				// Forzar que el destino y lo guardado en BD usen SIEMPRE solo el nombre del fichero
+				string relDest = !string.IsNullOrWhiteSpace(item.fileName)
+					? item.fileName
+					: (!string.IsNullOrWhiteSpace(item.originalRel)
+						? Path.GetFileName(item.originalRel.Replace('/', Path.DirectorySeparatorChar))
+						: Path.GetFileName(src));
+				var dest = Path.GetFullPath(Path.Combine(destinationEvidenceFolder, relDest));
 				Directory.CreateDirectory(Path.GetDirectoryName(dest));
 				File.Copy(src, dest, overwrite: true);
 				var actual = zipAndHashService.ComputeSha256(dest);
 				if (!string.Equals(item.sha, actual, StringComparison.OrdinalIgnoreCase))
 					throw new IOException("Hash de fichero no coincide: " + dest);
+
+				// Insertar/actualizar registro en FilesITems
+				try
+				{
+					using (var conn = databaseService.OpenConnection())
+					using (var cmd = new SqlCommand("INSERT INTO [FilesITems] (IdProject, Ext, ModifiedDate, URL, Path, Date, Size, Downloaded, Processed, Metadata_Id) VALUES (@p, @e, @md, @u, @pa, @d, @s, 1, 0, NULL)", conn))
+					{
+						cmd.Parameters.AddWithValue("@p", targetProjectId);
+						cmd.Parameters.AddWithValue("@e", Path.GetExtension(dest) ?? string.Empty);
+						cmd.Parameters.AddWithValue("@md", DateTime.Now);
+						cmd.Parameters.AddWithValue("@u", relDest);
+						cmd.Parameters.AddWithValue("@pa", relDest);
+						cmd.Parameters.AddWithValue("@d", DateTime.Now);
+						cmd.Parameters.AddWithValue("@s", new FileInfo(dest).Length);
+						cmd.ExecuteNonQuery();
+					}
+				}
+				catch { }
 				if (i % 25 == 0)
 				{
 					int pct = 70 + (int)((double)i / Math.Max(1, expected.Count) * 25);
 					progress.Report((pct, $"Restaurados {i}/{expected.Count} ficheros del proyecto"));
 				}
 			}
+		}
+
+		private string CoerceToRelativePath(string path)
+		{
+			if (string.IsNullOrWhiteSpace(path)) return string.Empty;
+			var p = path.Replace('/', Path.DirectorySeparatorChar);
+			try
+			{
+				if (Path.IsPathRooted(p))
+				{
+					var root = Path.GetPathRoot(p);
+					if (!string.IsNullOrEmpty(root) && p.Length > root.Length)
+						p = p.Substring(root.Length);
+				}
+			}
+			catch { p = Path.GetFileName(p); }
+			return p.TrimStart(Path.DirectorySeparatorChar);
 		}
 	}
 }

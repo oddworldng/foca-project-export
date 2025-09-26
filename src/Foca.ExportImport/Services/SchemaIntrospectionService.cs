@@ -107,9 +107,32 @@ JOIN sys.tables td ON td.object_id = fk.referenced_object_id", conn))
 			return edges;
 		}
 
+		public List<(string referencingTable, string referencingColumn, string referencedTable, string referencedColumn)> GetForeignKeysDetailed(SqlConnection conn)
+		{
+			var list = new List<(string,string,string,string)>();
+			using (var cmd = new SqlCommand(@"
+SELECT tr.name AS referencing_table,
+       cr.name AS referencing_column,
+       td.name AS referenced_table,
+       cd.name AS referenced_column
+FROM sys.foreign_key_columns fkc
+JOIN sys.tables tr ON tr.object_id = fkc.parent_object_id
+JOIN sys.columns cr ON cr.object_id = fkc.parent_object_id AND cr.column_id = fkc.parent_column_id
+JOIN sys.tables td ON td.object_id = fkc.referenced_object_id
+JOIN sys.columns cd ON cd.object_id = fkc.referenced_object_id AND cd.column_id = fkc.referenced_column_id", conn))
+			using (var r = cmd.ExecuteReader())
+			{
+				while (r.Read())
+				{
+					list.Add((r.GetString(0), r.GetString(1), r.GetString(2), r.GetString(3)));
+				}
+			}
+			return list;
+		}
+
 		public bool HasProjectId(SqlConnection conn, string table)
 		{
-			using (var cmd = new SqlCommand("SELECT 1 FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_NAME = @t AND COLUMN_NAME = 'ProjectId'", conn))
+			using (var cmd = new SqlCommand("SELECT 1 FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_NAME = @t AND (COLUMN_NAME = 'ProjectId' OR COLUMN_NAME = 'IdProject')", conn))
 			{
 				cmd.Parameters.AddWithValue("@t", table);
 				var o = cmd.ExecuteScalar();
@@ -180,13 +203,13 @@ JOIN sys.tables td ON td.object_id = fk.referenced_object_id", conn))
 			var uks = GetUniqueIndexes(conn, table);
 			foreach (var uk in uks)
 			{
-				if (Array.Exists(uk, c => string.Equals(c, "ProjectId", StringComparison.OrdinalIgnoreCase)) && HasAll(uk))
+				if ((Array.Exists(uk, c => string.Equals(c, "ProjectId", StringComparison.OrdinalIgnoreCase)) || Array.Exists(uk, c => string.Equals(c, "IdProject", StringComparison.OrdinalIgnoreCase))) && HasAll(uk))
 					return uk;
 			}
 			var pks = GetPrimaryKey(conn, table);
 			foreach (var pk in pks)
 			{
-				if (Array.Exists(pk, c => string.Equals(c, "ProjectId", StringComparison.OrdinalIgnoreCase)) && HasAll(pk))
+				if ((Array.Exists(pk, c => string.Equals(c, "ProjectId", StringComparison.OrdinalIgnoreCase)) || Array.Exists(pk, c => string.Equals(c, "IdProject", StringComparison.OrdinalIgnoreCase))) && HasAll(pk))
 					return pk;
 			}
 			return null;

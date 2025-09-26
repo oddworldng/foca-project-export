@@ -21,7 +21,7 @@ namespace Foca.ExportImport.UI
 			public int Id { get; set; }
 			public string Name { get; set; }
 			public string Evidence { get; set; }
-			public override string ToString() { return Name + " (" + Id + ")"; }
+			public override string ToString() { return Name; }
 		}
 
 		public ExportForm()
@@ -190,21 +190,30 @@ namespace Foca.ExportImport.UI
 
 		private void Worker_RunWorkerCompleted(object sender, RunWorkerCompletedEventArgs e)
 		{
-			btnStart.Enabled = true;
 			btnCancel.Enabled = false;
 			if (e.Error != null)
 			{
+				btnStart.Enabled = true;
 				MessageBox.Show(this, e.Error.Message, "Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
 			}
 			else if (e.Cancelled)
 			{
+				btnStart.Enabled = true;
 				lblStatus.Text = "Cancelado";
 			}
 			else
 			{
 				lblStatus.Text = "Completado";
 				progressStep.Value = 100;
+				btnStart.Enabled = false;
+				btnCancel.Visible = false;
+				btnClose.Visible = true;
 			}
+		}
+
+		private void btnClose_Click(object sender, EventArgs e)
+		{
+			this.Close();
 		}
 	}
 }

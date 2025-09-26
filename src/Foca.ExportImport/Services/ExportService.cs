@@ -88,7 +88,7 @@ namespace Foca.ExportImport.Services
 				{
 					idx++;
 					var columns = schemaService.GetColumns(conn, table);
-					if (!columns.Contains("ProjectId")) continue;
+					if (!columns.Contains("ProjectId") && !columns.Contains("IdProject")) continue;
 					string filePath = Path.Combine(outputDir, table + (format == TableExportFormat.Csv ? ".csv" : ".jsonl"));
 					ExportSingleTable(conn, table, columns, projectId, filePath, format);
 					exported.Add(table);
@@ -142,7 +142,9 @@ namespace Foca.ExportImport.Services
 			{
 				while (true)
 				{
-					using (var cmd = new SqlCommand($"SELECT {string.Join(",", columns)} FROM [" + table + "] WHERE ProjectId = @pid ORDER BY [" + orderBy + "] OFFSET @off ROWS FETCH NEXT @take ROWS ONLY", conn))
+					string pidCol = columns.Contains("ProjectId") ? "ProjectId" : (columns.Contains("IdProject") ? "IdProject" : null);
+					if (pidCol == null) break;
+					using (var cmd = new SqlCommand($"SELECT {string.Join(",", columns)} FROM [" + table + "] WHERE [" + pidCol + "] = @pid ORDER BY [" + orderBy + "] OFFSET @off ROWS FETCH NEXT @take ROWS ONLY", conn))
 					{
 						cmd.Parameters.AddWithValue("@pid", projectId);
 						cmd.Parameters.AddWithValue("@off", offset);
@@ -214,6 +216,8 @@ namespace Foca.ExportImport.Services
 			return p;
 		}
 
+ 
+
 		private sealed class FileRecord
 		{
 			public string RelativePath;
@@ -239,7 +243,7 @@ namespace Foca.ExportImport.Services
 					}
 					foreach (var kv in temp)
 					{
-						if (TableHasColumn(conn, kv.Key, "ProjectId"))
+						if (TableHasColumn(conn, kv.Key, "ProjectId") || TableHasColumn(conn, kv.Key, "IdProject"))
 						{
 							string pathCol = SelectFirst(kv.Value, new[] { "RelativePath", "LocalPath", "FilePath", "Path", "FullPath", "Ruta" });
 							string nameCol = ColumnIfExists(conn, kv.Key, "FileName") ?? ColumnIfExists(conn, kv.Key, "Name") ?? ColumnIfExists(conn, kv.Key, "Archivo");
@@ -250,7 +254,10 @@ namespace Foca.ExportImport.Services
 
 				foreach (var c in candidateTables)
 				{
-					using (var cmd = new SqlCommand($"SELECT [{c.pathCol}] AS RP, {(c.nameCol!=null?"["+c.nameCol+"]":"NULL")} AS FN FROM [" + c.table + "] WHERE ProjectId = @pid", conn))
+					string pidCol = TableHasColumn(conn, c.table, "ProjectId") ? "ProjectId" : (TableHasColumn(conn, c.table, "IdProject") ? "IdProject" : null);
+					if (pidCol == null) continue;
+					string selectSql = "SELECT [" + c.pathCol + "] AS RP, " + (c.nameCol != null ? ("[" + c.nameCol + "]") : "NULL") + " AS FN FROM [" + c.table + "] WHERE [" + pidCol + "] = @pid";
+					using (var cmd = new SqlCommand(selectSql, conn))
 					{
 						cmd.Parameters.AddWithValue("@pid", projectId);
 						using (var r = cmd.ExecuteReader())

@@ -8,6 +8,7 @@ namespace Foca.ExportImport.UI
 		private ProgressBar progressStep;
 		private Button btnStart;
 		private Button btnCancel;
+		private Button btnClose;
 		private Label lblStatus;
 		private Label lblStep;
 		private TextBox txtLog;
@@ -20,6 +21,7 @@ namespace Foca.ExportImport.UI
 			this.progressStep = new ProgressBar();
 			this.btnStart = new Button();
 			this.btnCancel = new Button();
+			this.btnClose = new Button();
 			this.lblStatus = new Label();
 			this.lblStep = new Label();
 			this.txtLog = new TextBox();
@@ -75,6 +77,18 @@ namespace Foca.ExportImport.UI
 			// 
 			// lblStatus
 			// 
+			// btnClose
+			// 
+			this.btnClose.Location = new System.Drawing.Point(138, 88);
+			this.btnClose.Name = "btnClose";
+			this.btnClose.Size = new System.Drawing.Size(120, 28);
+			this.btnClose.Text = "Cerrar";
+			this.btnClose.Visible = false;
+			this.btnClose.UseVisualStyleBackColor = true;
+			this.btnClose.Click += new System.EventHandler(this.btnClose_Click);
+			// 
+			// lblStatus
+			// 
 			this.lblStatus.AutoSize = true;
 			this.lblStatus.Location = new System.Drawing.Point(12, 124);
 			this.lblStatus.Name = "lblStatus";
@@ -105,6 +119,7 @@ namespace Foca.ExportImport.UI
 			this.Controls.Add(this.txtLog);
 			this.Controls.Add(this.lblStep);
 			this.Controls.Add(this.lblStatus);
+			this.Controls.Add(this.btnClose);
 			this.Controls.Add(this.btnCancel);
 			this.Controls.Add(this.btnStart);
 			this.Controls.Add(this.progressStep);
