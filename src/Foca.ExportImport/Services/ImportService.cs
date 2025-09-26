@@ -21,7 +21,7 @@ namespace Foca.ExportImport.Services
 			zipAndHashService = zip;
 		}
 
-		public void ImportProject(string sourceFocaPath, string destinationEvidenceFolder, bool overwrite, IProgress<(int percent, string status)> progress)
+		public void ImportProject(string sourceFocaPath, string destinationEvidenceFolder, string newProjectName, bool overwrite, IProgress<(int percent, string status)> progress)
 		{
 			string tempRoot = Path.Combine(Path.GetTempPath(), "foca_import_" + Guid.NewGuid().ToString("N"));
 			Directory.CreateDirectory(tempRoot);
@@ -37,11 +37,17 @@ namespace Foca.ExportImport.Services
 
 				ValidateManifest(manifest);
 
+				var projectName = string.IsNullOrWhiteSpace(newProjectName) ? manifest.project_name : newProjectName;
+
 				var tablesDir = Path.Combine(tempRoot, "db", "tables");
 				progress.Report((20, "Preparando importación por dependencias"));
 
+				int targetProjectId;
 				using (var conn = databaseService.OpenConnection())
 				{
+					// Crear proyecto destino y obtener su Id
+					targetProjectId = EnsureProject(conn, projectName, destinationEvidenceFolder);
+
 					var topo = schemaService.GetTopologicalOrderProjectTables(conn);
 					if (overwrite)
 					{
@@ -56,7 +62,7 @@ namespace Foca.ExportImport.Services
 									if (!schemaService.HasProjectId(conn, t)) continue;
 									using (var del = new SqlCommand($"DELETE FROM [" + t + "] WHERE ProjectId = @pid", conn, tx))
 									{
-										del.Parameters.AddWithValue("@pid", manifest.project_id);
+										del.Parameters.AddWithValue("@pid", targetProjectId);
 										del.ExecuteNonQuery();
 									}
 								}
@@ -78,7 +84,7 @@ namespace Foca.ExportImport.Services
 						if (ext == null) { processed++; continue; }
 						var columns = schemaService.GetColumns(conn, table);
 						var key = schemaService.ChooseMergeKey(conn, table, columns);
-						InsertData(conn, null, table, columns, Path.Combine(tablesDir, table + ext), ext, key);
+						InsertData(conn, null, table, columns, Path.Combine(tablesDir, table + ext), ext, key, targetProjectId);
 						processed++;
 						int pct = 30 + (int)((double)processed / Math.Max(1, topo.Count) * 40);
 						progress.Report((pct, $"Importada tabla {table} ({processed}/{topo.Count})"));
@@ -132,7 +138,7 @@ namespace Foca.ExportImport.Services
 						}
 
 						var key = MergeKeyResolver.GetNaturalKey(tableName, columns);
-						InsertData(conn, tx, tableName, columns, file, ext, key);
+						InsertData(conn, tx, tableName, columns, file, ext, key, Convert.ToInt32(manifest.project_id));
 
 						processed++;
 						int pct = 20 + (int)((double)processed / Math.Max(1, files.Length) * 50);
@@ -162,7 +168,7 @@ namespace Foca.ExportImport.Services
 			return columns;
 		}
 
-		private void InsertData(SqlConnection conn, SqlTransaction tx, string tableName, List<string> columns, string filePath, string ext, IReadOnlyList<string> naturalKey)
+		private void InsertData(SqlConnection conn, SqlTransaction tx, string tableName, List<string> columns, string filePath, string ext, IReadOnlyList<string> naturalKey, int targetProjectId)
 		{
 			const int BatchSize = 1000;
 			var buffer = new List<Dictionary<string, object>>(BatchSize);
@@ -175,7 +181,7 @@ namespace Foca.ExportImport.Services
 
 			using (var sr = new StreamReader(filePath))
 			{
-				if (ext == ".csv")
+					if (ext == ".csv")
 				{
 					// leer header
 					var header = sr.ReadLine();
@@ -183,7 +189,9 @@ namespace Foca.ExportImport.Services
 					while ((line = sr.ReadLine()) != null)
 					{
 						var values = ParseCsvLine(line, columns.Count);
-						buffer.Add(Map(columns, values));
+							var dict = Map(columns, values);
+							if (columns.Contains("ProjectId")) dict["ProjectId"] = targetProjectId;
+							buffer.Add(dict);
 						if (buffer.Count >= BatchSize) flush();
 					}
 				}
@@ -193,12 +201,28 @@ namespace Foca.ExportImport.Services
 					while ((line = sr.ReadLine()) != null)
 					{
 						var dict = Newtonsoft.Json.JsonConvert.DeserializeObject<Dictionary<string, object>>(line);
-						buffer.Add(dict);
+							if (columns.Contains("ProjectId")) dict["ProjectId"] = targetProjectId;
+							buffer.Add(dict);
 						if (buffer.Count >= BatchSize) flush();
 					}
 				}
 			}
 			flush();
+		}
+
+		private int EnsureProject(SqlConnection conn, string projectName, string evidenceFolder)
+		{
+			if (string.IsNullOrWhiteSpace(projectName)) projectName = "Imported Project";
+			using (var cmd = new SqlCommand("INSERT INTO [Projects] (ProjectName, ProjectSaveFile, ProjectState, Domain, FolderToDownload, ProjectDate, ProjectNotes) VALUES (@n, 1, 1, @d, @f, @dt, @notes); SELECT CAST(SCOPE_IDENTITY() AS int);", conn))
+			{
+				cmd.Parameters.AddWithValue("@n", projectName);
+				cmd.Parameters.AddWithValue("@d", "");
+				cmd.Parameters.AddWithValue("@f", evidenceFolder ?? "");
+				cmd.Parameters.AddWithValue("@dt", DateTime.Now);
+				cmd.Parameters.AddWithValue("@notes", (object)DBNull.Value);
+				var obj = cmd.ExecuteScalar();
+				return Convert.ToInt32(obj);
+			}
 		}
 
 		private void BulkUpsert(SqlConnection conn, SqlTransaction tx, string tableName, List<string> columns, List<Dictionary<string, object>> rows, IReadOnlyList<string> naturalKey)

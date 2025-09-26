@@ -2,6 +2,10 @@ using System;
 using System.ComponentModel;
 using System.Windows.Forms;
 using Foca.ExportImport.Services;
+using System.IO;
+using System.IO.Compression;
+using Newtonsoft.Json;
+using Foca.ExportImport.Models;
 
 namespace Foca.ExportImport.UI
 {
@@ -10,6 +14,7 @@ namespace Foca.ExportImport.UI
 		private readonly BackgroundWorker worker;
 		private ImportService importService;
 		private string destinationRoot;
+		private string selectedFocaPath;
 
 		public ImportForm()
 		{
@@ -45,6 +50,27 @@ namespace Foca.ExportImport.UI
 					}
 				}
 
+				// Si aún no se ha seleccionado .foca, pedirlo y pre-rellenar datos
+				if (string.IsNullOrEmpty(selectedFocaPath))
+				{
+					if (!ChooseFocaAndPrefill()) return;
+					lblStatus.Text = "Archivo cargado. Revisa nombre y carpeta y pulsa Importar de nuevo.";
+					return;
+				}
+
+				// Validar nombre y carpeta
+				if (string.IsNullOrWhiteSpace(txtProjectName.Text))
+				{
+					MessageBox.Show(this, "Especifica el nombre del proyecto.", "FOCA", MessageBoxButtons.OK, MessageBoxIcon.Information);
+					return;
+				}
+				if (string.IsNullOrWhiteSpace(txtProjectFolder.Text))
+				{
+					MessageBox.Show(this, "Especifica la carpeta de evidencias del proyecto.", "FOCA", MessageBoxButtons.OK, MessageBoxIcon.Information);
+					return;
+				}
+				destinationRoot = txtProjectFolder.Text;
+
 				// Inicializar servicios con la cadena de conexión del contexto
 				importService = new ImportService(
 					new DatabaseService(FocaContext.Current.GetConnectionString()),
@@ -79,38 +105,54 @@ namespace Foca.ExportImport.UI
 
 			Action<int, string> step = (p, m) => bw.ReportProgress(p, m);
 
-			var openFile = SelectFocaFile();
-			if (string.IsNullOrEmpty(openFile)) { e.Cancel = true; return; }
-
-			if (!SelectDestinationRoot()) { e.Cancel = true; return; }
+			if (string.IsNullOrEmpty(selectedFocaPath)) { e.Cancel = true; return; }
 
 			if (bw.CancellationPending) { e.Cancel = true; return; }
 			step(5, "Extrayendo fichero .foca (ZIP)");
 
-			importService.ImportProject(openFile, destinationRoot, overwrite: false, progress);
+			importService.ImportProject(selectedFocaPath, destinationRoot, txtProjectName.Text, overwrite: false, progress);
 		}
 
-		private string SelectFocaFile()
+		private bool ChooseFocaAndPrefill()
 		{
 			using (var ofd = new OpenFileDialog { Filter = "FOCA export (*.foca)|*.foca", Title = "Selecciona un fichero .foca" })
 			{
-				return ofd.ShowDialog(this) == DialogResult.OK ? ofd.FileName : null;
+				if (ofd.ShowDialog(this) != DialogResult.OK) return false;
+				selectedFocaPath = ofd.FileName;
+				try
+				{
+					using (var zip = ZipFile.OpenRead(selectedFocaPath))
+					{
+						var entry = zip.GetEntry("manifest.json");
+						if (entry != null)
+						{
+							using (var sr = new StreamReader(entry.Open()))
+							{
+								var manifest = JsonConvert.DeserializeObject<Manifest>(sr.ReadToEnd());
+								if (manifest != null && !string.IsNullOrWhiteSpace(manifest.project_name))
+									txtProjectName.Text = manifest.project_name;
+							}
+						}
+					}
+				}
+				catch { }
+				// Ruta por defecto desde el contexto
+				try { var def = FocaContext.Current.GetEvidenceRootFolder(); if (!string.IsNullOrWhiteSpace(def)) txtProjectFolder.Text = def; } catch { }
+				return true;
 			}
 		}
 
-		private bool SelectDestinationRoot()
+		private void btnBrowseFolder_Click(object sender, EventArgs e)
 		{
 			using (var fbd = new FolderBrowserDialog { Description = "Selecciona la carpeta raíz de evidencias destino del proyecto" })
 			{
-				var def = FocaContext.Current.GetEvidenceRootFolder();
-				if (!string.IsNullOrWhiteSpace(def)) fbd.SelectedPath = def;
+				if (!string.IsNullOrWhiteSpace(txtProjectFolder.Text)) fbd.SelectedPath = txtProjectFolder.Text;
+				else { try { var def = FocaContext.Current.GetEvidenceRootFolder(); if (!string.IsNullOrWhiteSpace(def)) fbd.SelectedPath = def; } catch { } }
 				if (fbd.ShowDialog(this) == DialogResult.OK)
 				{
-					destinationRoot = fbd.SelectedPath;
-					return true;
+					txtProjectFolder.Text = fbd.SelectedPath;
 				}
 			}
-			return false;
 		}
 
 		private void Worker_ProgressChanged(object sender, ProgressChangedEventArgs e)
