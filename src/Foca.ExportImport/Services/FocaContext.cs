@@ -4,7 +4,7 @@ namespace Foca.ExportImport.Services
 {
 	public interface IFocaContext
 	{
-		Guid GetActiveProjectId();
+		int GetActiveProjectId();
 		string GetActiveProjectName();
 		string GetConnectionString();
 		string GetEvidenceRootFolder();

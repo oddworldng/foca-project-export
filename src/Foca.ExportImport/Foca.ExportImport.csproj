@@ -65,6 +65,7 @@
     <Compile Include="Services\TableWriters.cs" />
     <Compile Include="Services\MergeKeyResolver.cs" />
     <Compile Include="Services\SchemaIntrospectionService.cs" />
+    <Compile Include="Services\AutoFocaContext.cs" />
     <Compile Include="Services\FocaContext.cs" />
     <Compile Include="Models\Manifest.cs" />
     <Compile Include="Models\SchemaVersion.cs" />

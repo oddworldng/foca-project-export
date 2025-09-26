@@ -3,6 +3,7 @@ using System.ComponentModel;
 using System.Windows.Forms;
 using Foca.ExportImport.Models;
 using Foca.ExportImport.Services;
+using System.Data.SqlClient;
 
 namespace Foca.ExportImport.UI
 {
@@ -11,6 +12,17 @@ namespace Foca.ExportImport.UI
 		private readonly BackgroundWorker worker;
 		private ExportService exportService;
 		private string exportPath;
+		private int selectedProjectId;
+		private string selectedProjectName;
+		private string selectedEvidenceRoot;
+
+		private sealed class ProjectItem
+		{
+			public int Id { get; set; }
+			public string Name { get; set; }
+			public string Evidence { get; set; }
+			public override string ToString() { return Name + " (" + Id + ")"; }
+		}
 
 		public ExportForm()
 		{
@@ -46,6 +58,19 @@ namespace Foca.ExportImport.UI
 					}
 				}
 
+				// Debe haber un proyecto seleccionado
+				if (cmbProjects.SelectedItem is ProjectItem sel)
+				{
+					selectedProjectId = sel.Id;
+					selectedProjectName = sel.Name;
+					selectedEvidenceRoot = string.IsNullOrWhiteSpace(sel.Evidence) ? FocaContext.Current.GetEvidenceRootFolder() : sel.Evidence;
+				}
+				else
+				{
+					MessageBox.Show(this, "Selecciona un proyecto.", "FOCA", MessageBoxButtons.OK, MessageBoxIcon.Information);
+					return;
+				}
+
 				// Inicializar servicios con la cadena de conexión del contexto
 				exportService = new ExportService(
 					new DatabaseService(FocaContext.Current.GetConnectionString()),
@@ -53,8 +78,7 @@ namespace Foca.ExportImport.UI
 
 				using (var sfd = new SaveFileDialog { Filter = "FOCA export (*.foca)|*.foca", Title = "Guardar proyecto como .foca", OverwritePrompt = true })
 				{
-					var projectName = FocaContext.Current.GetActiveProjectName();
-					sfd.FileName = string.IsNullOrWhiteSpace(projectName) ? "export.foca" : projectName + ".foca";
+					sfd.FileName = string.IsNullOrWhiteSpace(selectedProjectName) ? "export.foca" : selectedProjectName + ".foca";
 					if (sfd.ShowDialog(this) != DialogResult.OK) return;
 					exportPath = sfd.FileName;
 				}
@@ -89,9 +113,9 @@ namespace Foca.ExportImport.UI
 			// Subpasos y mensajes detallados
 			Action<int, string> step = (p, m) => bw.ReportProgress(p, m);
 
-			var projectId = FocaContext.Current.GetActiveProjectId();
-			var projectName = FocaContext.Current.GetActiveProjectName();
-			var evidence = FocaContext.Current.GetEvidenceRootFolder();
+			var projectId = selectedProjectId;
+			var projectName = selectedProjectName;
+			var evidence = selectedEvidenceRoot;
 
 			if (bw.CancellationPending) { e.Cancel = true; return; }
 			step(3, "Preparando estructura temporal");
@@ -105,6 +129,43 @@ namespace Foca.ExportImport.UI
 				progress,
 				TableExportFormat.Jsonl,
 				includeBinaries: true);
+		}
+
+		private void ExportForm_Shown(object sender, EventArgs e)
+		{
+			// Intentar configurar contexto si no existe
+			try { var _ = FocaContext.Current; }
+			catch { try { FocaContext.Configure(new AutoFocaContext()); } catch { } }
+
+			// Cargar proyectos desde la BD "Foca"
+			try
+			{
+				var cs = FocaContext.Current.GetConnectionString();
+				using (var conn = new SqlConnection(cs))
+				{
+					conn.Open();
+					using (var cmd = new SqlCommand("SELECT Id, ProjectName, FolderToDownload FROM [Projects] ORDER BY ProjectDate DESC, Id DESC", conn))
+					using (var r = cmd.ExecuteReader())
+					{
+						cmbProjects.Items.Clear();
+						while (r.Read())
+						{
+							var item = new ProjectItem
+							{
+								Id = r.IsDBNull(0) ? 0 : r.GetInt32(0),
+								Name = r.IsDBNull(1) ? "" : r.GetString(1),
+								Evidence = r.IsDBNull(2) ? null : r.GetString(2)
+							};
+							cmbProjects.Items.Add(item);
+						}
+						if (cmbProjects.Items.Count > 0) cmbProjects.SelectedIndex = 0;
+					}
+				}
+			}
+			catch (Exception ex)
+			{
+				MessageBox.Show(this, "No se pudieron cargar los proyectos desde la BD.\r\n\r\n" + ex.Message, "FOCA", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+			}
 		}
 
 		private void Worker_ProgressChanged(object sender, ProgressChangedEventArgs e)

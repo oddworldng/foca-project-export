@@ -21,7 +21,7 @@ namespace Foca.ExportImport.Services
 			zipAndHashService = zip;
 		}
 
-		public void ExportProject(Guid projectId, string projectName, string evidenceFolder, string destinationFocaPath, IProgress<(int percent, string status)> progress, TableExportFormat format = TableExportFormat.Jsonl, bool includeBinaries = true)
+		public void ExportProject(int projectId, string projectName, string evidenceFolder, string destinationFocaPath, IProgress<(int percent, string status)> progress, TableExportFormat format = TableExportFormat.Jsonl, bool includeBinaries = true)
 		{
 			string tempRoot = Path.Combine(Path.GetTempPath(), "foca_export_" + Guid.NewGuid().ToString("N"));
 			Directory.CreateDirectory(tempRoot);
@@ -77,7 +77,7 @@ namespace Foca.ExportImport.Services
 			}
 		}
 
-		private List<string> ExportTables(Guid projectId, string outputDir, IProgress<(int, string)> progress, TableExportFormat format)
+		private List<string> ExportTables(int projectId, string outputDir, IProgress<(int, string)> progress, TableExportFormat format)
 		{
 			var exported = new List<string>();
 			using (var conn = databaseService.OpenConnection())
@@ -131,7 +131,7 @@ namespace Foca.ExportImport.Services
 			return info;
 		}
 
-		private void ExportSingleTable(SqlConnection conn, string table, List<string> columns, Guid projectId, string filePath, TableExportFormat format)
+		private void ExportSingleTable(SqlConnection conn, string table, List<string> columns, int projectId, string filePath, TableExportFormat format)
 		{
 			const int BatchSize = 10000;
 			long offset = 0;
@@ -174,7 +174,7 @@ namespace Foca.ExportImport.Services
 			}
 		}
 
-		private int ExportProjectFilesFromDatabase(Guid projectId, string evidenceRoot, string destFolder, string filesIndexPath, IProgress<(int, string)> progress)
+		private int ExportProjectFilesFromDatabase(int projectId, string evidenceRoot, string destFolder, string filesIndexPath, IProgress<(int, string)> progress)
 		{
 			var fileRecords = DiscoverProjectFileRecords(projectId);
 			int total = fileRecords.Count;
@@ -220,7 +220,7 @@ namespace Foca.ExportImport.Services
 			public string FileName;
 		}
 
-		private List<FileRecord> DiscoverProjectFileRecords(Guid projectId)
+		private List<FileRecord> DiscoverProjectFileRecords(int projectId)
 		{
 			var results = new List<FileRecord>();
 			using (var conn = databaseService.OpenConnection())
@@ -294,7 +294,7 @@ namespace Foca.ExportImport.Services
 			return null;
 		}
 
-		private void ExportProjectConfig(Guid projectId, string metaDir)
+		private void ExportProjectConfig(int projectId, string metaDir)
 		{
 			var data = new Dictionary<string, object>();
 			using (var conn = databaseService.OpenConnection())

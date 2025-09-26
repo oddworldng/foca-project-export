@@ -11,7 +11,7 @@ namespace Foca.ExportImport.Services
     public sealed class AutoFocaContext : IFocaContext
     {
         private readonly string connectionString;
-        private Guid? cachedProjectId;
+        private int? cachedProjectId;
         private string cachedProjectName;
         private string cachedEvidenceRoot;
 
@@ -24,7 +24,7 @@ namespace Foca.ExportImport.Services
             }
         }
 
-        public Guid GetActiveProjectId()
+        public int GetActiveProjectId()
         {
             if (cachedProjectId.HasValue) return cachedProjectId.Value;
             using (var conn = new SqlConnection(connectionString))
@@ -38,7 +38,7 @@ namespace Foca.ExportImport.Services
                 {
                     var obj = cmd.ExecuteScalar();
                     if (obj == null) throw new InvalidOperationException("No se encontró proyecto en la BD de FOCA.");
-                    cachedProjectId = (obj is Guid g) ? g : Guid.Parse(obj.ToString());
+                    cachedProjectId = Convert.ToInt32(obj);
                 }
             }
             return cachedProjectId.Value;
